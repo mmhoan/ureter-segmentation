@@ -1,0 +1,130 @@
+cd '/home/uk2/바탕화면/GUAI MOON/nnunet_code'
+import torch
+torch.__version__
+###############################
+##################### nnunet/experiment_planning/nnUNet_plan_and_preprocess.py
+###############################
+import nnunet
+from batchgenerators.utilities.file_and_folder_operations import *
+from nnunet.experiment_planning.DatasetAnalyzer import DatasetAnalyzer
+from nnunet.experiment_planning.utils import crop
+from nnunet.paths import *
+import shutil
+from nnunet.utilities.task_name_id_conversion import convert_id_to_task_name
+from nnunet.preprocessing.sanity_checks import verify_dataset_integrity
+import easydict
+from nnunet.training.model_restore import recursive_find_python_class
+'''
+task_ids : 4 (=Task004_Hippocampus)
+planner3d : 3d version
+planner2d : 2d version
+no_pp : preprocessing 여부
+tl(processes_lowres) : low resolution process number
+tf(processes_fullres) : high resolution process number
+verify_dataset_integrity : check dataset integrity
+'''
+args = easydict.EasyDict({
+        "task_ids" : None,
+        "planner3d" : "ExperimentPlanner3D_v21_11GB",
+        "planner2d" : "ExperimentPlanner2D_v21",
+        "no_pp" : None,
+        "tl" : 8,
+        "tf" : 8,
+        "verify_dataset_integrity" : False
+})
+
+args.task_ids = ['99']#['19']  # (=Task004_Hippocampus)
+args.verify_dataset_integrity = True
+
+task_ids = args.task_ids
+dont_run_preprocessing = args.no_pp
+tl = args.tl
+tf = args.tf
+planner_name3d = args.planner3d
+planner_name2d = args.planner2d
+
+tasks = []
+for i in task_ids:
+    i = int(i)
+    # 4 -> Task004_Hippocampus
+    task_name = convert_id_to_task_name(i)
+
+    if args.verify_dataset_integrity:
+        #verify_dataset_integrity(join(nnUNet_raw_data, task_name))
+        pass
+    ##########################################################################################################
+    # 0인 가장자리 crop, seg special label(nnUNet_cropped_data)
+    '''
+    1. 데이터 저장(nnUNet_raw_data -> nnUNet_cropped_data)
+    1) Segmentation file 저장 : (nnUNet_raw_data -> nnUNet_cropped_data/gt_segmentations)
+    2) Crop data(original,segmentation) 저장 : (nnUnet_cropped_data/hippocampus_001.npz, hippocampus_002.npz,...)
+    3) Crop data information 저장 (nnUNet_cropped_data/hippocampus_001.pkl, hippocampus_002.pkl,...)
+        - properties[original_size_of_raw_data // original_spacing // list_of_data_files // seg_file]
+        - properties[itk_origin, itk_spacing, itk_direction // crop_bbox // classes // size_after_cropping]
+    (자세한 tag 정보는 experiment_planning/utils.py(crop) 참조)
+    '''
+    crop(task_name, False, tf)
+    ##########################################################################################################
+    tasks.append(task_name)
+search_in = join(nnunet.__path__[0], "experiment_planning")
+
+if planner_name3d is not None:
+    planner_3d = recursive_find_python_class([search_in], planner_name3d, current_module="nnunet.experiment_planning")
+    if planner_3d is None:
+        raise RuntimeError("Could not find the Planner class %s. Make sure it is located somewhere in "
+                            "nnunet.experiment_planning" % planner_name3d)
+else: planner_3d = None
+
+if planner_name2d is not None:
+    planner_2d = recursive_find_python_class([search_in], planner_name2d, current_module="nnunet.experiment_planning")
+    if planner_2d is None:
+        raise RuntimeError("Could not find the Planner class %s. Make sure it is located somewhere in "
+                            "nnunet.experiment_planning" % planner_name2d)
+else: planner_2d = None
+for t in tasks:
+    print("\n\n\n", t)
+    cropped_out_dir = os.path.join(nnUNet_cropped_data, t)
+    preprocessing_output_dir_this_task = os.path.join(preprocessing_output_dir, t)
+    #splitted_4d_output_dir_task = os.path.join(nnUNet_raw_data, t)
+    #lists, modalities = create_lists_from_splitted_dataset(splitted_4d_output_dir_task)
+
+    ##########################################################################################################
+    # props_per_case.pkl // intensityproperties.pkl // dataset_properties.pkl 저장
+    '''
+    1. props_per_case (nnUNet_cropped_data/Task004_Hippocampus/props_per_case.pkl)
+        - [patient_identifiers]
+        - - [has_classes // only_one_region // volume_per_class // region_volume_per_class]
+    2. intensityproperties (nnUNet_cropped_data/Task004_Hippocampus/intensityproperties.pkl)
+        - [mod_id]
+        - -[local_props // median // mean // sd // mn // mx // percentile_00_5 // percentile_99_5]
+    3. dataset_properties (nnUNet_cropped_data/Task004_Hippocampus/dataset_properties.pkl)
+        - [all_sizes // all_spacing // segmentation_props_per_patient // class_dct // all_classes]
+        - [modalities // intensityproperties // size_reductions]
+    (자세한 tag 정보는 experiment_planning/DatasetAnalyzer.py(analyze_dataset) 참조)
+    '''
+    dataset_json = load_json(join(cropped_out_dir, 'dataset.json'))
+    modalities = list(dataset_json["modality"].values())
+    collect_intensityproperties = True if (("CT" in modalities) or ("ct" in modalities)) else False
+    dataset_analyzer = DatasetAnalyzer(cropped_out_dir, overwrite=False, num_processes=tf)
+    _ = dataset_analyzer.analyze_dataset(collect_intensityproperties)
+    ##########################################################################################################
+    maybe_mkdir_p(preprocessing_output_dir_this_task)
+    shutil.copy(join(cropped_out_dir, "dataset_properties.pkl"), preprocessing_output_dir_this_task)
+    shutil.copy(join(nnUNet_raw_data, t, "dataset.json"), preprocessing_output_dir_this_task)
+
+    threads = (tl, tf)
+    print("number of threads: ", threads, "\n")
+
+    
+    if planner_3d is not None:
+        exp_planner = planner_3d(cropped_out_dir, preprocessing_output_dir_this_task)
+        exp_planner.plan_experiment()
+        if not dont_run_preprocessing:
+            exp_planner.run_preprocessing(threads)
+    '''
+    if planner_2d is not None:
+        exp_planner = planner_2d(cropped_out_dir, preprocessing_output_dir_this_task)
+        exp_planner.plan_experiment()
+        if not dont_run_preprocessing:  # double negative, yooo
+            exp_planner.run_preprocessing(threads)
+    '''
