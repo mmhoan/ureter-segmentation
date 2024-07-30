@@ -1,0 +1,259 @@
+import nibabel as nib
+import SimpleITK as sitk
+import nrrd
+import numpy as np
+from batchgenerators.utilities.file_and_folder_operations import *
+
+def nrrd_to_nii(vol_path, seg_path, vol_save_path, seg_save_path):
+
+    img_itk = sitk.ReadImage(vol_path)
+    img_npy = sitk.GetArrayFromImage(img_itk)
+    spacing = img_itk.GetSpacing()
+    origin = img_itk.GetOrigin()
+    direction = img_itk.GetDirection()
+
+    seg = nrrd.read(seg_path)
+    seg_data = seg[0]
+    seg_header = seg[1]
+
+    seg_data[seg_data>0]=1
+    seg_raw = np.moveaxis(seg_data, [0,1,2], [2,1,0])
+
+
+    seg_itk_new = sitk.GetImageFromArray(seg_raw)
+    seg_itk_new.SetSpacing(spacing)
+    seg_itk_new.SetOrigin(origin)
+    seg_itk_new.SetDirection(direction)
+
+    sitk.WriteImage(img_itk, vol_save_path)
+    sitk.WriteImage(seg_itk_new, seg_save_path)
+
+main_path = '/home/uk2/바탕화면/GUAI MOON/data2'
+for f in subfolders(main_path):
+    if 'ipynb' in f:
+        continue
+    for f2 in subfiles(f):
+        if 'MultiVolume' in f2:
+            continue
+        if 'VUE' in f2:
+            vol_path = f2
+        elif 'seg.nrrd' in f2:
+            seg_path = f2
+            
+            
+    f=f.replace('data2','data_nii2')
+    
+    maybe_mkdir_p(f)
+    vol_save_path = f+'/imaging.nii.gz'
+    seg_save_path = f+'/segmentation.nii.gz'
+    nrrd_to_nii(vol_path, seg_path, vol_save_path, seg_save_path)
+    #print(f)
+
+seg = nrrd.read(seg_path)
+seg_data = seg[0]
+seg_header = seg[1]
+
+seg_header
+
+seg_data.shape
+
+vol_path='/home/uk2/바탕화면/GUAI MOON/data/case 05/302 8M Delay-70KEV AR30(SFT E1) 2.5.nrrd'    #303 VUE 8M Delay-VUE AR30(SFT E1) 2.5.nrrd'
+seg_path='/home/uk2/바탕화면/GUAI MOON/data/case 05/Segmentation.seg.nrrd'
+f='/home/uk2/바탕화면/GUAI MOON/data/case 05/'
+f=f.replace('data','data_nii2')
+vol_save_path = f+'/imaging.nii.gz'
+seg_save_path = f+'/segmentation.nii.gz'
+maybe_mkdir_p(f)
+nrrd_to_nii(vol_path, seg_path, vol_save_path, seg_save_path)
+
+vol_path='/home/uk2/바탕화면/GUAI MOON/data/case 05/302 8M Delay-70KEV AR30(SFT E1) 2.5.nrrd' 
+vol = nrrd.read(vol_path)
+vol_data = vol[0]
+vol_header = vol[1]
+seg_path='/home/uk2/바탕화면/GUAI MOON/data2/case 05/Segmentation.seg.nrrd'
+seg = nrrd.read(seg_path)
+seg_data = seg[0]
+seg_header = seg[1]
+
+vol_data.shape
+
+seg_header
+
+img_itk = sitk.ReadImage(vol_path)
+img_npy = sitk.GetArrayFromImage(img_itk)
+spacing = img_itk.GetSpacing()
+origin = img_itk.GetOrigin()
+direction = img_itk.GetDirection()
+
+img=nrrd.read(vol_path)
+img_data, img_header = img
+seg = nrrd.read(seg_path)
+seg_data = seg[0]
+seg_header = seg[1]
+
+raw = np.zeros(seg_data[0].shape, dtype='uint8')
+#raw[seg_data[0]>0]=1
+for i in range(np.shape(seg_data)[0]):
+    raw[np.where(seg_data[i] == 1)] = 1
+    
+raw = np.moveaxis(raw, [0,1,2], [2,1,0])
+
+seg_raw = np.zeros(img_npy.shape, dtype='uint8')
+seg_raw[img_npy.shape[0]-raw.shape[0]:img_npy.shape[0]-raw.shape[0]+raw.shape[0],:,:]=raw
+
+
+seg_raw = np.pad(seg_raw, ((0,img_npy.shape[0]-seg_raw.shape[0]),(0,0),(0,0)))
+seg_itk_new = sitk.GetImageFromArray(seg_raw)
+seg_itk_new.SetSpacing(spacing)
+seg_itk_new.SetOrigin(origin)
+seg_itk_new.SetDirection(direction)
+
+sitk.WriteImage(img_itk, vol_save_path)
+sitk.WriteImage(seg_itk_new, seg_save_path)
+
+seg_data.shape
+
+raw.shape
+
+img_npy.shape[0]-seg_raw.shape[0]
+
+img_npy.shape[0]-seg_raw.shape[0]
+
+raw = np.moveaxis(raw, [0,1,2], [2,1,0])
+
+seg_raw = np.zeros(img_npy.shape, dtype='uint8')
+seg_raw[img_npy.shape[0]-seg_raw.shape[0]:img_npy.shape[0]-raw.shape[0]+raw.shape[0]].shape
+
+np.pad(np.moveaxis(raw, [0,1,2], [2,1,0]), ((img_npy.shape[0]-seg_raw.shape[0],0),(0,0),(0,0))).shape
+
+a=np.ones((3,3,3))
+b=np.pad(a, ((0,2),(0,0),(0,0)))
+
+b[3]
+
+vol_path1='/home/uk2/바탕화면/GUAI MOON/data/case 04/302 8M Delay-70KEV AR30(SFT E1) 2.5.nrrd'    #303 VUE 8M Delay-VUE AR30(SFT E1) 2.5.nrrd'
+seg_path1='/home/uk2/바탕화면/GUAI MOON/data/case 04/Segmentation.seg.nrrd'
+img1=nrrd.read(vol_path1)
+img_data1, img_header1 = img1
+seg1 = nrrd.read(seg_path1)
+seg_data1,seg_header1 = seg1
+
+vol_path2='/home/uk2/바탕화면/GUAI MOON/data/case 05/302 8M Delay-70KEV AR30(SFT E1) 2.5.nrrd'    #303 VUE 8M Delay-VUE AR30(SFT E1) 2.5.nrrd'
+seg_path2='/home/uk2/바탕화면/GUAI MOON/data/case 05/Segmentation.seg.nrrd'
+img2=nrrd.read(vol_path2)
+img_data2, img_header2 = img2
+seg2 = nrrd.read(seg_path2)
+seg_data2,seg_header2 = seg2
+
+vol_path='/home/uk2/바탕화면/GUAI MOON/data_nii/case 05/segmentation.nii.gz' 
+img_itk = sitk.ReadImage(vol_path)
+img_npy = sitk.GetArrayFromImage(img_itk)
+
+np.where(img_npy==1)
+
+img_npy.shape
+
+205-182
+
+64-48
+
+seg_header1
+
+seg_header2
+
+img_header
+
+seg_header
+
+head_list = seg_header['Segmentation_ReferenceImageExtentOffset'].split(' ')
+head_list = list(map(int, head_list))
+head_list = head_list[::-1]
+
+head_list
+
+seg_data.shape
+
+nrrd_to_nii(vol_path, seg_path, vol_save_path, seg_save_path)
+
+len(seg)
+
+def nrrd_to_nii(vol_path, seg_path, vol_save_path, seg_save_path):
+    
+    img_itk = sitk.ReadImage(vol_path)
+    img_npy = sitk.GetArrayFromImage(img_itk)
+    spacing = img_itk.GetSpacing()
+    origin = img_itk.GetOrigin()
+    direction = img_itk.GetDirection()
+
+    seg = nrrd.read(seg_path)
+    seg_data = seg[0]
+    seg_header = seg[1]
+
+    raw = np.zeros(seg_data[0].shape, dtype='uint8')
+
+    for i in range(np.shape(seg_data)[0]):
+        raw[np.where(seg_data[i] == 1)] = 1
+        raw[np.where(seg_data[i] == 1)] = 1
+
+    raw = np.moveaxis(raw, [0,1,2], [2,1,0])
+    head_list = seg_header['Segmentation_ReferenceImageExtentOffset'].split(' ')
+    head_list = list(map(int, head_list))
+    head_list = head_list[::-1]
+
+    seg_raw = np.zeros(img_npy.shape, dtype='uint8')
+    seg_raw[
+            head_list[0]:head_list[0]+raw.shape[0],
+            head_list[1]:head_list[1]+raw.shape[1],
+            head_list[2]:head_list[2]+raw.shape[2]] = raw
+
+    seg_itk_new = sitk.GetImageFromArray(seg_raw)
+    seg_itk_new.SetSpacing(spacing)
+    seg_itk_new.SetOrigin(origin)
+    seg_itk_new.SetDirection(direction)
+
+    sitk.WriteImage(img_itk, vol_save_path)
+    sitk.WriteImage(seg_itk_new, seg_save_path)
+
+seg_data.shape
+
+img_itk = sitk.ReadImage(vol_path)
+img_npy = sitk.GetArrayFromImage(img_itk)
+spacing = img_itk.GetSpacing()
+origin = img_itk.GetOrigin()
+direction = img_itk.GetDirection()
+
+seg = nrrd.read(seg_path)
+seg_data = seg[0]
+seg_header = seg[1]
+
+seg_data[seg_data>0]=1
+seg_raw = np.moveaxis(seg_data, [0,1,2], [2,1,0])
+
+np.unique(seg_data)
+
+main_path = '/home/uk2/바탕화면/GUAI MOON/data2'
+for f in subfolders(main_path):
+    if 'ipynb' in f:
+        continue
+    for f2 in subfiles(f):
+        if 'MultiVolume' in f2:
+            continue
+        if 'VUE' in f2:
+            vol_path = f2
+        elif 'seg.nrrd' in f2:
+            seg_path = f2
+            
+    vol = nrrd.read(vol_path)
+    vol_data = vol[0]
+    vol_header = vol[1]
+    
+    seg = nrrd.read(seg_path)
+    seg_data = seg[0]
+    seg_header = seg[1]
+    
+    print(f.split('/')[-1], vol_data.shape, seg_data.shape, vol_data.shape[-1]-seg_data.shape[-1])
+
+f.split('/')[-]
+
+import zipfile
+zipfile.ZipFile('/home/uk2/다운로드/OneDrive-2022-05-18.zip').extractall('/home/uk2/다운로드/aaa')
